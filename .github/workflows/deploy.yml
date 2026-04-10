@@ -1,4 +1,4 @@
-name: Trigger EC2 Image Builder
+name: Build And Deploy To App Runner
 
 on:
   push:
@@ -8,11 +8,12 @@ on:
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
-  IMAGEBUILDER_PIPELINE_ARN: ${{ secrets.IMAGEBUILDER_PIPELINE_ARN }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   deploy:
-    name: Start image pipeline
+    name: Build, push, and deploy
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,15 +31,26 @@ jobs:
 
       - name: Validate required secrets
         run: |
-          test -n "${IMAGEBUILDER_PIPELINE_ARN}" || (echo "Missing IMAGEBUILDER_PIPELINE_ARN secret" && exit 1)
+          test -n "${ECR_REPOSITORY}" || (echo "Missing ECR_REPOSITORY secret" && exit 1)
+          test -n "${{ secrets.APP_RUNNER_SERVICE_ARN }}" || (echo "Missing APP_RUNNER_SERVICE_ARN secret" && exit 1)
 
-      - name: Start EC2 Image Builder pipeline
-        run: |
-          aws imagebuilder start-image-pipeline-execution \
-            --image-pipeline-arn "${IMAGEBUILDER_PIPELINE_ARN}" \
-            --client-token "${{ github.run_id }}-${{ github.run_attempt }}"
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Deployment note
+      - name: Build Docker image
         run: |
-          echo "Image Builder has been triggered."
-          echo "App Runner should redeploy automatically after your pipeline publishes the new image to the source App Runner watches."
+          docker build \
+            --tag ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} \
+            --tag ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest \
+            .
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: Trigger App Runner deployment
+        run: |
+          aws apprunner start-deployment \
+            --service-arn "${{ secrets.APP_RUNNER_SERVICE_ARN }}"
