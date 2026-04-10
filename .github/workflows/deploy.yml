@@ -1,4 +1,4 @@
-name: Deploy To App Runner
+name: Trigger EC2 Image Builder
 
 on:
   push:
@@ -8,11 +8,11 @@ on:
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-  IMAGE_TAG: ${{ github.sha }}
+  IMAGEBUILDER_PIPELINE_ARN: ${{ secrets.IMAGEBUILDER_PIPELINE_ARN }}
 
 jobs:
   deploy:
+    name: Start image pipeline
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,23 +28,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build Docker image
+      - name: Validate required secrets
         run: |
-          docker build \
-            --tag ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} \
-            --tag ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest \
-            .
+          test -n "${IMAGEBUILDER_PIPELINE_ARN}" || (echo "Missing IMAGEBUILDER_PIPELINE_ARN secret" && exit 1)
 
-      - name: Push Docker image to ECR
+      - name: Start EC2 Image Builder pipeline
         run: |
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          aws imagebuilder start-image-pipeline-execution \
+            --image-pipeline-arn "${IMAGEBUILDER_PIPELINE_ARN}" \
+            --client-token "${{ github.run_id }}-${{ github.run_attempt }}"
 
-      - name: Start App Runner deployment
+      - name: Deployment note
         run: |
-          aws apprunner start-deployment \
-            --service-arn "${{ secrets.APP_RUNNER_SERVICE_ARN }}"
+          echo "Image Builder has been triggered."
+          echo "App Runner should redeploy automatically after your pipeline publishes the new image to the source App Runner watches."
