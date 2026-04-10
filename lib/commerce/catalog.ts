@@ -130,16 +130,35 @@ export const getHomepageData = cache(async () => {
   };
 });
 
-export async function getCatalogData(query?: string, categoryId?: string) {
-  if (!env.isSupabaseConfigured) {
-    return [] as ProductWithRelations[];
+export async function getCatalogData(
+  query?: string,
+  categoryId?: string,
+  options?: {
+    page?: number;
+    pageSize?: number;
   }
+) {
+  if (!env.isSupabaseConfigured) {
+    return {
+      products: [] as ProductWithRelations[],
+      total: 0,
+      page: 1,
+      pageSize: options?.pageSize ?? 12,
+      totalPages: 0
+    };
+  }
+
+  const page = Math.max(1, options?.page ?? 1);
+  const pageSize = Math.max(1, Math.min(options?.pageSize ?? 12, 1000));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   let request = supabaseAdmin
     .from("products")
-    .select("*, product_media(*), categories(*)")
+    .select("*, product_media(*), categories(*)", { count: "exact" })
     .eq("status", "active")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
   if (query) {
     request = request.or(`name.ilike.%${query}%,short_description.ilike.%${query}%`);
@@ -149,13 +168,21 @@ export async function getCatalogData(query?: string, categoryId?: string) {
     request = request.eq("category_id", categoryId);
   }
 
-  const { data, error } = await request;
+  const { data, error, count } = await request;
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data ?? []) as ProductWithRelations[];
+  const total = Number(count ?? 0);
+
+  return {
+    products: (data ?? []) as ProductWithRelations[],
+    total,
+    page,
+    pageSize,
+    totalPages: total ? Math.ceil(total / pageSize) : 0
+  };
 }
 
 export async function getCategoryPageData(slug: string) {
@@ -179,7 +206,7 @@ export async function getCategoryPageData(slug: string) {
   }
 
   const [products, featuredRaw] = await Promise.all([
-    getCatalogData(undefined, category.id),
+    getCatalogData(undefined, category.id, { page: 1, pageSize: 24 }),
     supabaseAdmin
       .from("category_featured_products")
       .select("*")
@@ -192,7 +219,7 @@ export async function getCategoryPageData(slug: string) {
 
   return {
     category: category as Category,
-    products,
+    products: products.products,
     featuredProducts
   };
 }
@@ -219,13 +246,13 @@ export async function getProductPageData(slug: string) {
 
   const [reviews, relatedProducts] = await Promise.all([
     getProductReviews(data.id),
-    getCatalogData(undefined, data.category_id ?? undefined)
+    getCatalogData(undefined, data.category_id ?? undefined, { page: 1, pageSize: 8 })
   ]);
 
   return {
     product: data as ProductWithRelations,
     reviews,
-    relatedProducts: relatedProducts.filter((item) => item.id !== data.id).slice(0, 4)
+    relatedProducts: relatedProducts.products.filter((item) => item.id !== data.id).slice(0, 4)
   };
 }
 

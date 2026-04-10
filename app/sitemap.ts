@@ -7,7 +7,7 @@ import { absoluteUrl } from "@/lib/seo";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [categories, products, faqs] = await Promise.all([
     getVisibleCategories(),
-    getCatalogData(),
+    getCatalogData(undefined, undefined, { page: 1, pageSize: 1000 }),
     getAllFaqs()
   ]);
 
@@ -26,7 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.8
     })),
-    ...products.map((product) => ({
+    ...products.products.map((product) => ({
       url: absoluteUrl(`/products/${product.slug}`),
       lastModified: new Date(product.updated_at),
       changeFrequency: "weekly" as const,

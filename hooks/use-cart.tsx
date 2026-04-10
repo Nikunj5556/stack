@@ -25,6 +25,14 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = "creatorstack-cart";
 
+function persistCart(items: CartItem[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
@@ -36,7 +44,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    persistCart(items);
   }, [items]);
 
   const value = useMemo<CartContextValue>(
@@ -50,37 +58,48 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             (entry) => entry.productId === item.productId && entry.variantId === item.variantId
           );
 
+          let nextItems: CartItem[];
           if (existing) {
-            return current.map((entry) =>
+            nextItems = current.map((entry) =>
               entry.productId === item.productId && entry.variantId === item.variantId
                 ? { ...entry, quantity: entry.quantity + item.quantity }
                 : entry
             );
+          } else {
+            nextItems = [...current, item];
           }
 
-          return [...current, item];
+          persistCart(nextItems);
+          return nextItems;
         });
       },
       updateQuantity(productId, quantity, variantId) {
         if (quantity <= 0) {
-          setItems((current) =>
-            current.filter((item) => !(item.productId === productId && item.variantId === variantId))
-          );
+          setItems((current) => {
+            const nextItems = current.filter((item) => !(item.productId === productId && item.variantId === variantId));
+            persistCart(nextItems);
+            return nextItems;
+          });
           return;
         }
 
-        setItems((current) =>
-          current.map((item) =>
+        setItems((current) => {
+          const nextItems = current.map((item) =>
             item.productId === productId && item.variantId === variantId ? { ...item, quantity } : item
-          )
-        );
+          );
+          persistCart(nextItems);
+          return nextItems;
+        });
       },
       removeItem(productId, variantId) {
-        setItems((current) =>
-          current.filter((item) => !(item.productId === productId && item.variantId === variantId))
-        );
+        setItems((current) => {
+          const nextItems = current.filter((item) => !(item.productId === productId && item.variantId === variantId));
+          persistCart(nextItems);
+          return nextItems;
+        });
       },
       clear() {
+        persistCart([]);
         setItems([]);
       }
     }),

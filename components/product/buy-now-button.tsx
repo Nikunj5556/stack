@@ -1,8 +1,17 @@
 "use client";
 
+import { useCart } from "@/hooks/use-cart";
 import { createMetaEventId, trackMetaEvent, waitForMetaDispatch } from "@/lib/meta/browser";
 
-export function BuyNowButton() {
+export function BuyNowButton(props: {
+  productId: string;
+  slug: string;
+  name: string;
+  price: number;
+  image: string | null;
+}) {
+  const { addItem } = useCart();
+
   return (
     <a
       className="button button--ghost"
@@ -13,6 +22,14 @@ export function BuyNowButton() {
         }
 
         event.preventDefault();
+        addItem({
+          productId: props.productId,
+          slug: props.slug,
+          name: props.name,
+          price: props.price,
+          image: props.image,
+          quantity: 1
+        });
         trackMetaEvent({
           eventName: "InitiateCheckout",
           eventId: createMetaEventId("initiate-checkout"),

@@ -71,7 +71,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               productId={data.product.id}
               slug={data.product.slug}
             />
-            <BuyNowButton />
+            <BuyNowButton
+              image={heroMedia}
+              name={data.product.name}
+              price={Number(data.product.base_price)}
+              productId={data.product.id}
+              slug={data.product.slug}
+            />
           </div>
           <div className="info-grid">
             <div>

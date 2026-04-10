@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { CatalogSearchForm } from "@/components/catalog/catalog-search-form";
 import { ProductCard } from "@/components/product/product-card";
 import { StructuredData } from "@/components/seo/structured-data";
 import { getCategoryPageData } from "@/lib/commerce/catalog";
@@ -40,6 +41,10 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
         <p className="muted">{data.category.description || "Explore a handpicked collection of digital products in this category."}</p>
       </section>
 
+      <section className="section-block section-block--tight">
+        <CatalogSearchForm action="/catalog" categoryId={data.category.id} />
+      </section>
+
       <section className="section-block">
         <div className="section-heading">
           <div>
@@ -47,7 +52,11 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
             <h2>Top picks in this collection</h2>
           </div>
         </div>
-        <div className="product-grid">
+        <div
+          className={
+            data.featuredProducts.length <= 2 ? "product-grid product-grid--compact" : "product-grid"
+          }
+        >
           {data.featuredProducts.length ? (
             data.featuredProducts.map((product) => <ProductCard key={product.id} product={product} />)
           ) : (
@@ -63,7 +72,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
             <h2>Everything in this collection</h2>
           </div>
         </div>
-        <div className="product-grid">
+        <div className={data.products.length <= 3 ? "product-grid product-grid--compact" : "product-grid"}>
           {data.products.length ? (
             data.products.map((product) => <ProductCard key={product.id} product={product} />)
           ) : (
